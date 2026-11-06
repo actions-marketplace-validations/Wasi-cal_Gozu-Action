@@ -119,9 +119,10 @@ class NoRepeats(unittest.TestCase):
         self.assertEqual(jira.made(), [])
         self.assertNotIn("transition", [c[0] for c in jira.calls])
 
-    def test_a_ticket_that_this_action_closed_is_reopened_when_the_finding_returns(self):
+    def test_a_ticket_that_this_action_closed_is_reopened_when_the_finding_returns_on_its_branch(self):
         a = finding("a")
-        jira = FakeJira(issues={issue_label(a): Issue("VT-9", [issue_label(a), AUTO_CLOSED_LABEL], done=True)})
+        labels = [issue_label(a), branch_label("feature/login"), AUTO_CLOSED_LABEL]
+        jira = FakeJira(issues={issue_label(a): Issue("VT-9", labels, done=True)})
 
         out = run.sync(jira, [a], "feature/login", OPTS)
 
@@ -129,6 +130,18 @@ class NoRepeats(unittest.TestCase):
         self.assertIn(("transition", "VT-9", "new"), jira.calls)
         self.assertIn(("labels", "VT-9", (), (AUTO_CLOSED_LABEL,)), jira.calls)
         self.assertEqual(jira.made(), [])
+
+    def test_a_closed_ticket_of_another_branch_stays_closed_when_the_finding_shows_on_this_branch(self):
+        a = finding("a")
+        labels = [issue_label(a), branch_label("gozu-veil-integration"), AUTO_CLOSED_LABEL]
+        jira = FakeJira(issues={issue_label(a): Issue("VT-9", labels, done=True)})
+
+        out = run.sync(jira, [a], "veil-test", OPTS)
+
+        self.assertEqual(out.reopened, [])
+        self.assertEqual(out.existing, 1)
+        self.assertEqual(jira.made(), [])
+        self.assertEqual(jira.calls, [])
 
     def test_a_ticket_that_a_person_closed_stays_closed(self):
         a = finding("a")

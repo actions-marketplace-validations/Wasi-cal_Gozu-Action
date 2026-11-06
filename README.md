@@ -64,10 +64,17 @@ Outputs: `findings`, `tickets-created`, `tickets-existing`, `tickets-reopened`, 
 - Two runs at the same time can both miss a ticket that is being made. Each run checks after it creates one. The oldest ticket stays, and the newer one closes as a duplicate. Run the job with a `concurrency` group per repository to make this rare.
 - The same issue twice in one scan makes one ticket.
 
+**A ticket is bound to its branch.**
+- A ticket has the label `branch-<name>` of the branch of the scan that made it. This is the branch of the ticket for its whole life.
+- A scan changes the status of the tickets of its own branch only. It closes them and reopens them. A scan never closes or reopens a ticket of another branch, or a ticket that gozu made on `main`.
+- The reason: the finding id has no branch, so one ticket can stand for the same finding on two branches. A scan of one branch cannot see if the finding is fixed on the other branch. A reopen or a close of that ticket would be a false alarm.
+- When a scan finds a finding that has a ticket of another branch, the ticket stays as it is. The scan counts it as "already ticketed" and makes no new ticket.
+- Example: the finding is fixed on `feature-a` and the ticket closes. Later a scan of the older branch `feature-b`, which has no fix, reports the finding again. The ticket stays closed.
+
 **Auto-close and reopen.**
 - When a scan of a branch no longer reports a finding, the open ticket that a scan of that branch made closes. It gets a comment and the label `gozu-auto-closed`. The transition goes to whatever "done" status the project's workflow has.
-- Only tickets with this branch's `branch-<name>` label and one of the scanners that ran are considered. Tickets of other branches, or made by gozu on `main`, are never touched, because this scan cannot see those branches.
-- If a finding comes back, the ticket that this action closed reopens, so the finding still has one ticket. A ticket that a person closed (no `gozu-auto-closed` label) stays closed.
+- Only tickets with this branch's `branch-<name>` label and one of the scanners that ran are considered.
+- If a finding comes back on the same branch, the ticket that this action closed reopens, so the finding still has one ticket. A ticket that a person closed (no `gozu-auto-closed` label) stays closed.
 
 **Tickets.**
 - They follow the contract exactly: title `repo | file | line | title`, labels `issue-<id>`, `<tool>` and `branch-<branch>`, the same Details list, issue type Bug. veil can read them.

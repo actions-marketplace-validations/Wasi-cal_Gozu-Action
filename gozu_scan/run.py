@@ -125,7 +125,10 @@ def _close(jira: JiraClient, key: str, comment: str) -> bool:
 
 
 def _reopen(jira: JiraClient, issue: Issue, branch: str, out: Outcome) -> None:
-    """A ticket that this action closed, for a finding that is back. A ticket that a person closed stays closed."""
+    """A ticket that this action closed, for a finding that is back on the branch of the ticket.
+
+    A ticket that a person closed stays closed. A ticket of another branch stays as it is (see `_belongs_to`).
+    """
 
     def step() -> None:
         if not jira.transition(issue.key, "new"):
@@ -138,8 +141,20 @@ def _reopen(jira: JiraClient, issue: Issue, branch: str, out: Outcome) -> None:
     _bonus("The reopen", issue.key, step)
 
 
+def _belongs_to(issue: Issue, branch: str) -> bool:
+    """A ticket is bound to the branch of its `branch-<name>` label, the branch of the scan that made it.
+
+    A scan changes the status of the tickets of its own branch only. A finding can show on two branches with
+    one ticket. A scan of the other branch cannot know if the finding is fixed on the branch of the ticket.
+    """
+    return branch_label(branch) in issue.labels
+
+
 def sync(jira: JiraClient, found: list[Finding], branch: str, opts: Options) -> Outcome:
-    """One ticket for each finding, ever: create the missing ones, reopen the returned ones, close the fixed ones."""
+    """One ticket for each finding, ever: create the missing ones, reopen the returned ones, close the fixed ones.
+
+    A ticket is bound to its branch. A scan reopens and closes the tickets of its own branch only.
+    """
     out = Outcome()
     known = jira.existing_issues(found)
     seen: set[str] = set()
@@ -152,7 +167,7 @@ def sync(jira: JiraClient, found: list[Finding], branch: str, opts: Options) -> 
         issue = known.get(label)
         if issue:
             out.existing += 1
-            if issue.done and AUTO_CLOSED_LABEL in issue.labels:
+            if issue.done and AUTO_CLOSED_LABEL in issue.labels and _belongs_to(issue, branch):
                 _reopen(jira, issue, branch, out)
             continue
         key = _create(jira, finding, opts)
